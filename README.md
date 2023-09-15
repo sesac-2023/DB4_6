@@ -7,7 +7,7 @@
 원형 사용. 복수형 등 사용 금지  
 
 - 테이블명: `SNAKE_CASE`
-- 열이름: `SNAKE_CASE`
+- 열이름: `snake_case`
 - 주키(단일): `id`
 - 주키(복합): `id_column`
 - 외래키: `table_id`
