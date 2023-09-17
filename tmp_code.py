@@ -53,12 +53,15 @@ class NewsDB:
         # # 1 - 대통령실, 2 - ...
         # tmp = [l.rstrip().split(',') for l in open('./sub_category').readlines()]
         if type(category_file)==str:
-            with open(category_file, 'r') as f:
-                self.SUB_CATEGORY_DICT = json.load(f)
+            if category_file[-5:]=='.json':
+                with open(category_file, 'r') as f:
+                    self.SUB_CATEGORY_DICT = json.load(f)
+            else:
+                raise Exception('category_file can only use .json!\nuse .json or insert dictionary')
         elif type(category_file)==dict:
                 self.SUB_CATEGORY_DICT = category_file
         else:
-            raise
+            raise Exception('category_file can only use .json and dictionary!\ninsert path of .json or dictionary')
 
 
         # self.PLATFORM_DICT = {
@@ -109,7 +112,7 @@ class NewsDB:
                                     error_list.append([id, cat_1, name, platfrom])
                                     print(f"already values({id}, '{cat_1}','{name}', '{platfrom}' exist")
                     print('='*50)
-                    print(f'done_tasl: {len(done_list)}, error_task: {len(error_list)}')
+                    print(f'done_task: {len(done_list)}, error_task: {len(error_list)}')
             except:
                 print("make tables first!")
 
@@ -178,7 +181,7 @@ class NewsDB:
         """
         pass
 
-    def insert_comment(self, df: pd.DataFrame(list, str)) -> None:
+    def insert_comment(self, df: pd.DataFrame([list, str])) -> None:
         """
         인자 : 댓글 데이터프레임
         columns = ['comment', 'url']
@@ -193,7 +196,7 @@ class NewsDB:
         df_columns = ['comment', 'url']
         if sum(~(df_columns==df.columns)):
             raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
-        elif not sum(df.url.str.find('comment')>=0):
+        elif sum(df.url.str.find('comment')>=0):
             raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
         df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt']
         
@@ -253,7 +256,7 @@ class NewsDB:
     # 각 인원이 ERD 통해 데이터베이스에 테이블 생성해서 수집한 데이터로 테스트해 볼 것
         
 
-    def select_news(self, query_command: str) -> pd.DataFrame:
+    def select_news(self, query_command: str) -> tuple|pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -270,7 +273,10 @@ class NewsDB:
         """
         with self.remote.cursor() as cur:
             cur.execute(query_command)
-            res = pd.DataFrame(cur.fetchall())
+            if query_command.find('select * from news')==0:
+                res = pd.DataFrame(cur.fetchall(), columns=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'])
+            else:
+                res = cur.fetchall()
         return res
 
     def select_user(self) -> pd.DataFrame:
@@ -286,7 +292,7 @@ class NewsDB:
         """
         with self.remote.cursor() as cur:
             cur.execute('select * from user')
-            res = pd.DataFrame(cur.fetchall())
+            res = pd.DataFrame(cur.fetchall(), columns=['id', 'user_id', 'user_name'])
         return res
         
     def select_comment(self) -> pd.DataFrame:
@@ -302,7 +308,7 @@ class NewsDB:
         """
         with self.remote.cursor() as cur:
             cur.execute('select * from comment')
-            res = pd.DataFrame(cur.fetchall())
+            res = pd.DataFrame(cur.fetchall(), columns=['id', 'news_id', 'user_id', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt'])
         return res
 
 if __name__ == '__main__':
