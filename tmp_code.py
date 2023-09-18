@@ -209,7 +209,7 @@ class NewsDB:
     def insert_comment(self, df: pd.DataFrame) -> None:
         """
         인자 : 댓글 데이터프레임
-        columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
+        columns = ['user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
 
         데이터프레임 칼럼 체크하여 Comment 테이블의 칼럼과 일치하지 않을 경우 에러
 
@@ -235,6 +235,7 @@ class NewsDB:
         # comment_df 변환
         df = df[~df.user_id.isna()].reset_index(drop=True)
         df_columns.pop()
+        df_columns = ['news_id']+df_columns
         df = df[df_columns]
 
         # user_df 생성 및 적재
