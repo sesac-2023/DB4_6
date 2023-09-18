@@ -145,8 +145,10 @@ class NewsDB:
 
         # column 이름 일치 확인
         df_columns = ['cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url']
-        if sum(~(df_columns==df.columns)):
-            raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
+        df = df[df_columns]
+        # 순서가 다를 경우 해결하도록 재배치로 변경
+        # if sum(~(df_columns==df.columns)):
+        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
 
         # platform_name 변환 및 cat2_id 할당
         df['platform_name'] = [platform if platform in ("네이버", "다음") else "네이버" if platform.upper()=="NAVER" else "다음" if platform.upper()=="DAUM" else None for platform in df['platform_name']]
@@ -181,10 +183,10 @@ class NewsDB:
         """
         pass
 
-    def insert_comment(self, df: pd.DataFrame([list, str])) -> None:
+    def insert_comment(self, df: pd.DataFrame) -> None:
         """
         인자 : 댓글 데이터프레임
-        columns = ['comment', 'url']
+        columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
 
         데이터프레임 칼럼 체크하여 Comment 테이블의 칼럼과 일치하지 않을 경우 에러
 
@@ -224,23 +226,22 @@ class NewsDB:
         # df = df[df_columns]
 
         # column과 url 확인
-        df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
-        if sum(~(df_columns==df.columns)):
-            raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
-        elif sum(df.url.str.find('comment')>=0):
-            raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
+        df_columns = ['user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
+        df = df[df_columns]
+        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
+        # if sum(~(df_columns==df.columns)):
+        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
+        # elif sum(df.url.str.find('comment')>=0):
+        #     raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
 
         # get news_id
-        tmp_list = []
         with self.remote.cursor() as cur:
-            my_query = "select id, url from news where url=%s"
-            for v in df['url'].values:
-                cur.execute(my_query, v)
-                tmp_list.extend(cur.fetchall())
+            cur.execute("select id, url from news")
+            tmp_df = pd.DataFrame(cur.fetchall(), columns=['news_id', 'url'])
 
-        tmp_list = pd.DataFrame(tmp_list, columns=['news_id', 'url'])
-        df = pd.merge(df, tmp_list, 'left', 'url').explode('comment').reset_index(drop=True)
-        del tmp_list
+        # df = pd.merge(df, tmp_list, 'left', 'url').explode('comment').reset_index(drop=True)
+        df = pd.merge(df, tmp_df, 'left', 'url').reset_index(drop=True)
+        del tmp_df
 
         # comment_df 변환
         df = df[~df.user_id.isna()].reset_index(drop=True)
@@ -279,8 +280,9 @@ class NewsDB:
 
     # 각 인원이 ERD 통해 데이터베이스에 테이블 생성해서 수집한 데이터로 테스트해 볼 것
         
-
-    def select_news(self, query_command: str) -> tuple|pd.DataFrame:
+    ## 강사님 코드
+    ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
+    def select_news(self, start_date=None, end_date=None, platform: str|None=None, category1: str|None=None, category2=None) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -295,12 +297,83 @@ class NewsDB:
         3. WHERE 조건문
         4. LIMIT, OFFSET 등 처리
         """
+
+        where_sql = []
+
+        if start_date and end_date:
+            where_sql.append(f"date_upload BETWEEN '{start_date}' AND '{end_date}'")
+        elif start_date:
+            where_sql.append(f"date_upload >= '{start_date}'")
+        elif end_date:
+            where_sql.append(f"date_upload <= '{end_date}'")
+
+        if platform:
+            if platform==1:
+                where_sql.append(f"cat2_id<20000")
+            elif platform==2:
+                where_sql.append(f"cat2_id>20000")
+            else:
+                raise Exception('you can use only 1 or 2!')
+
+        if category2:
+            # 튜플형식 (메인, 서브)
+            cat2_id = self.SUB_CATEGORY_DICT[platform][category1][category2]
+            where_sql.append(f"cat2_id={cat2_id}")
+
+
+        main_query = f'SELECT id,cat2_id,press,writer,title,content,date_upload,url FROM NEWS'
+
+        if where_sql:
+            main_query += f' WHERE {" AND ".join(where_sql)}'
+
+        # 1GB Ram 제한 (limit, offset)
+        pagination_sql = ' LIMIT 100000 OFFSET {}'
+        offset = 0
+        final_result = []
+        while True:
+            with self.DB.cursor() as cur:
+                cur.execute(main_query + pagination_sql.format(offset))
+                result = cur.fetchall()
+                final_result.extend(result)
+
+            if len(result) < 100000:
+                break
+
+            offset += 100000 # LIMIT
+
+        news_column = ['news_id','platform','category1', 'category2', 'press','writer','title','content','date_upload','url']
+        
+        df = pd.DataFrame(final_result, columns=news_column)
+        self.CATEGORY1_ID2NAME = {int(v): k for k, v in self.category1_info.items()}
+        self.CATEGORY2_ID2NAME = {int(v): k for k, v in self.category2_info.items()}
+        self.PLATFORM_ID2NAME = {int(v): k for k, v in self.PLATFORM_DICT.items()}
+
+        df['platform'] = df['platform'].map(self.PLATFORM_ID2NAME)
+        df['category1'] = df['category1'].map(self.CATEGORY1_ID2NAME)
+        df['category2'] = df['category2'].map(self.CATEGORY2_ID2NAME)
+
+        return df
+    
+    def select(self, query_command: str) -> tuple:
+        """
+        인자 : 데이터를 꺼내올 때 사용할 parameters 
+        (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
+
+        DB에 들어있는 데이터를 꺼내올 것인데, 어떻게 꺼내올지를 고민
+
+        인자로 받은 파라미터 별 조건을 넣은 select SQL문 작성
+
+        SQL문에 추가할 내용들
+        1. 가져올 칼럼
+        2. JOIN할 경우 JOIN문 (플랫폼, 카테고리)
+        3. WHERE 조건문
+        4. LIMIT, OFFSET 등 처리
+        """
+        if query_command.find(';')>=0:
+            raise Exception('you can use only one query')
         with self.remote.cursor() as cur:
             cur.execute(query_command)
-            if query_command.find('select * from news')==0:
-                res = pd.DataFrame(cur.fetchall(), columns=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'])
-            else:
-                res = cur.fetchall()
+            res = cur.fetchall()
         return res
 
     def select_user(self) -> pd.DataFrame:
