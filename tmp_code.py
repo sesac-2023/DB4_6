@@ -192,14 +192,44 @@ class NewsDB:
         2. DB에 적재
         """
 
+        # # column과 url 확인
+        # df_columns = ['comment', 'url']
+        # if sum(~(df_columns==df.columns)):
+        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
+        # elif sum(df.url.str.find('comment')>=0):
+        #     raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
+        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
+        
+        # # get news_id
+        # tmp_list = []
+        # with self.remote.cursor() as cur:
+        #     my_query = "select id, url from news where url=%s"
+        #     for v in df['url'].values:
+        #         cur.execute(my_query, v)
+        #         tmp_list.extend(cur.fetchall())
+
+        # tmp_list = pd.DataFrame(tmp_list, columns=['news_id', 'url'])
+        # df = pd.merge(df, tmp_list, 'left', 'url').explode('comment').reset_index(drop=True)
+        # del tmp_list
+
+        # # comment_df 변환
+        # trash, df['comment'], df['user_id'], df['user_name'], df['date_upload'], df['date_fix'], df['good_cnt'], df['bad_cnt'] = zip(*df.comment.values)
+        # del trash
+        # df['date_upload'] =  df['date_upload'].str.split('+').str[0]
+        # if df['date_upload'][0].find('T')>=0:
+        #     df['date_upload'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_upload']]
+        #     df['date_fix'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_fix']]
+        # df = df[~df.user_id.isna()].reset_index(drop=True)
+        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt']
+        # df = df[df_columns]
+
         # column과 url 확인
-        df_columns = ['comment', 'url']
+        df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
         if sum(~(df_columns==df.columns)):
             raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
         elif sum(df.url.str.find('comment')>=0):
             raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
-        df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt']
-        
+
         # get news_id
         tmp_list = []
         with self.remote.cursor() as cur:
@@ -213,14 +243,8 @@ class NewsDB:
         del tmp_list
 
         # comment_df 변환
-        trash, df['comment'], df['user_id'], df['user_name'], df['date_upload'], df['date_fix'], df['good_cnt'], df['bad_cnt'] = zip(*df.comment.values)
-        del trash
-        df['date_upload'] =  df['date_upload'].str.split('+').str[0]
-        if df['date_upload'][0].find('T')>=0:
-            df['date_upload'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_upload']]
-            df['date_fix'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_fix']]
         df = df[~df.user_id.isna()].reset_index(drop=True)
-        df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt']
+        df_columns.pop()
         df = df[df_columns]
 
         # user_df 생성 및 적재
