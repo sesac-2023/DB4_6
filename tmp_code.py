@@ -82,11 +82,12 @@ class NewsDB:
         if category_file:
             with self.remote.cursor() as cur:
                 # category 불러오기
-                try:
-                    with open(category_file, 'r') as f:
-                        category = json.load(f)
-                except:
-                    raise Exception("category.json don't exist or path is worng.")
+                if type(category_file)==str:
+                    try:
+                        with open(category_file, 'r') as f:
+                            category = json.load(f)
+                    except:
+                        raise Exception("category.json don't exist or path is worng.")
 
                 # category 확인 및 적재
                 done_list = []
@@ -149,7 +150,7 @@ class NewsDB:
         df_columns = ['cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url']
         df = df[df_columns]
         for col in df.columns:
-            df.loc[df[col].isna().index, col] = None
+            df.loc[df[col].isna(), col] = None
             df.loc[(df[col]==''), col] = None
 
         # platform_name 변환 및 cat2_id 할당
@@ -189,18 +190,17 @@ class NewsDB:
             my_query = "insert ignore into USER(user_id, user_name) values(%s, %s)"
             cur.executemany(my_query, df.values.tolist())
         self.remote.commit()
-        print('inserted user!')
 
         # get user_id
         with self.remote.cursor() as cur:
-            cur.execute("select u.id, user_id from USER")
+            cur.execute("select id, user_id from USER")
             user_df = pd.DataFrame(cur.fetchall(), columns=['id', 'user_id'])
         df = user_df[user_df.user_id.isin(df.user_id.values)]
 
         # get news_id
         with self.remote.cursor() as cur:
-            cur.execute("select c.user_id, c.news_id n.url from COMMENT c, NEWS n where c.news_id=n.id")
-            news_df = pd.DataFrame(cur.fetchall(), columns=['id', 'news_id', 'url'])
+            cur.execute("select c.user_id, c.news_id, c.comment, n.url from COMMENT c, NEWS n where c.news_id = n.id")
+            news_df = pd.DataFrame(cur.fetchall(), columns=['id', 'news_id', 'comment', 'url'])
         df = news_df[news_df.id.isin(df.id.values)]
         return df
         
@@ -221,7 +221,7 @@ class NewsDB:
         df_columns = ['user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
         df = df[df_columns]
         for col in df.columns:
-            df.loc[df[col].isna().index, col] = None
+            df.loc[df[col].isna(), col] = None
             df.loc[(df[col]==''), col] = None
 
         # get news_id
@@ -268,7 +268,10 @@ class NewsDB:
         
     ## 강사님 코드
     ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
-    def select_news(self, start_date=None, end_date=None, platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None) -> pd.DataFrame:
+    def select_news(self, start_date=None, end_date=None, 
+                    platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None
+                    , columns_name:list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
+                    limit: int|str|None=None) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -297,66 +300,66 @@ class NewsDB:
 
         if platform or category1 or category2:
             tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF.copy()
-        else:
-            tmp_SUB_CATEGORY_DF=None
+            if platform:
+                if platform=='다음':
+                    where_sql.append(f"cat2_id<20000")
+                elif platform=='네이버':
+                    where_sql.append(f"cat2_id>20000")
+                else:
+                    raise Exception('you can use only "다음" or "네이버"!')
+                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==platform]
+            
+            if category1:
+                isin_list = []
+                if type(category1)==str:
+                    category1 = [category1]
+                for value in category1:
+                    isin_list.append(value)
+                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
+            
+            if category2:
+                isin_list = []
+                if type(category2)==str:
+                    category2 = [category2]
+                for value in category2:
+                    isin_list.append(value)
+                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
+            # where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF.cat2_id.apply(str).values)})")
+            where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF.cat2_id.apply(str).values.tolist())})")
+        # else:
+        #     tmp_SUB_CATEGORY_DF=None
         
-        if platform:
-            if platform=='다음':
-                where_sql.append(f"cat2_id<20000")
-            elif platform=='네이버':
-                where_sql.append(f"cat2_id>20000")
-            else:
-                raise Exception('you can use only "다음" or "네이버"!')
-            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==platform]
-        
-        if category1:
-            isin_list = []
-            if type(category1)==str:
-                category1 = [category1]
-            for value in category1:
-                isin_list.append(value)
-            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
-        
-        if category2:
-            isin_list = []
-            if type(category1)==str:
-                category1 = [category1]
-            for value in category1:
-                isin_list.append(value)
-            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
 
-        if tmp_SUB_CATEGORY_DF:
-            cat2_id = []
-            # 튜플형식 (메인, 서브)
-            cat2_id.append(self.SUB_CATEGORY_DICT[platform][category1][category2])
-            where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF)})")
+        # main_query = f'SELECT id,cat2_id,title,press,writer,date_upload,content,sticker,url FROM NEWS '
+        main_query = f'SELECT {", ".join(columns_name)} FROM NEWS '
 
-        main_query = f'SELECT id,cat2_id,title,press,writer,date_upload,content,sticker,url FROM NEWS '
-
+        final_result = []
         if where_sql:
             main_query += f' WHERE {" AND ".join(where_sql)}'
-
-        # 1GB Ram 제한 (limit, offset)
-        pagination_sql = ' LIMIT 100000 OFFSET {}'
-        offset = 0
-        final_result = []
-        while True:
-            with self.DB.cursor() as cur:
-                cur.execute(main_query + pagination_sql.format(offset))
+        if limit:
+            main_query += f' limit {limit}'
+            with self.remote.cursor() as cur:
+                cur.execute(main_query)
                 result = cur.fetchall()
                 final_result.extend(result)
+        else:
+            # 1GB Ram 제한 (limit, offset)
+            pagination_sql = ' LIMIT 100000 OFFSET {}'
+            offset = 0
+            while True:
+                with self.remote.cursor() as cur:
+                    cur.execute(main_query + pagination_sql.format(offset))
+                    result = cur.fetchall()
+                    final_result.extend(result)
 
-            if len(result) < 100000:
-                break
+                if len(result) < 100000:
+                    break
 
-            offset += 100000 # LIMIT
+                offset += 100000 # LIMIT
 
-        news_column = ['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']
+        news_column = ['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url']
         
         df = pd.DataFrame(final_result, columns=news_column)
-        self.CATEGORY1_ID2NAME = {int(v): k for k, v in self.category1_info.items()}
-        self.CATEGORY2_ID2NAME = {int(v): k for k, v in self.category2_info.items()}
-        self.PLATFORM_ID2NAME = {int(v): k for k, v in self.PLATFORM_DICT.items()}
 
         tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
         df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
