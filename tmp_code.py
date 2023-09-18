@@ -21,7 +21,7 @@ class NewsDB:
     클래스 설명
     """
 
-    def __init__(self, db_config: str|dict, category_file: str|dict, sql_file: str|None=None) -> None:
+    def __init__(self, db_config: str|dict, category_file: str|dict|None=None, sql_file: str|None=None) -> None:
         """
         데이터베이스 접속
         인자 : 데이터베이스 접속정보
@@ -44,77 +44,79 @@ class NewsDB:
         # 딕셔너리 언패킹하여 인자 값 할당 후 서버 연동
         self.remote = pymysql.connect(**res)
 
-
-        # # 메인카테고리 정보 - DB에 적재된 id값, 이름
-        # # 1 - 정치, 2 - 사회
-        # tmp = [l.rstrip().split(',') for l in open('./main_category').readlines()]
-        # self.MAIN_CATEGORY_DICT = {v: k for k, v in tmp}
-        # # 서브카테고리 정보 - DB에 적재된 id값, 이름
-        # # 1 - 대통령실, 2 - ...
-        # tmp = [l.rstrip().split(',') for l in open('./sub_category').readlines()]
-        if type(category_file)==str:
-            if category_file[-5:]=='.json':
-                with open(category_file, 'r') as f:
-                    self.SUB_CATEGORY_DICT = json.load(f)
+        if category_file:
+            if type(category_file)==str:
+                if category_file[-5:]=='.json':
+                    with open(category_file, 'r') as f:
+                        self.SUB_CATEGORY_DICT = json.load(f)
+                else:
+                    raise Exception('category_file can only use .json!\nuse .json or insert dictionary')
+            elif type(category_file)==dict:
+                    self.SUB_CATEGORY_DICT = category_file
             else:
-                raise Exception('category_file can only use .json!\nuse .json or insert dictionary')
-        elif type(category_file)==dict:
-                self.SUB_CATEGORY_DICT = category_file
+                raise Exception('category_file can only use .json and dictionary!\ninsert path of .json or dictionary')
+            
         else:
-            raise Exception('category_file can only use .json and dictionary!\ninsert path of .json or dictionary')
+            with self.remote.cursor() as cur:
+                cur.execute('select * from CATEGORY')
+                tmp = cur.fetchall()
 
-
-        # self.PLATFORM_DICT = {
-        #     '네이버': 1,
-        #     '다음': 2
-        # }
-        # # tmp = [l.rstrip().split(',') for l in open('./platform_info').readlines()]
-        # # self.PLATFORM_DICT = {v: k for k, v in tmp}
-
+            self.SUB_CATEGORY_DF = pd.DataFrame(tmp, columns=['cat2_id', 'cat1_name', 'cat2_name', 'platform_name'])
+            self.SUB_CATEGORY_DICT = {}
+            [self.SUB_CATEGORY_DICT.update({p: {}}) for p in self.SUB_CATEGORY_DF.platform_name.unique()]
+            [self.SUB_CATEGORY_DICT[p].update({c1: {}}) for p in self.SUB_CATEGORY_DF.platform_name.unique() for c1 in self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==p].cat1_name.unique()]
+            [self.SUB_CATEGORY_DICT[p][c1].update({c2[1]: c2[0]}) for p in self.SUB_CATEGORY_DF.platform_name.unique() for c1 in self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==p].cat1_name.unique() for c2 in self.SUB_CATEGORY_DF[(self.SUB_CATEGORY_DF.platform_name==p)&(self.SUB_CATEGORY_DF.cat1_name==c1)][['cat2_id', 'cat2_name']].values]
 
         # 테이블 생성. if not exists로 오류 해결.
-
-        with self.remote.cursor() as cur:
-            # 파일에서 '\ufeff'가 읽힐 경우 encoding하거나 replace로 제거
-            with open(sql_file, 'r', encoding='utf-8-sig') as f :
-                # split(';')이기에 마지막에 ['']가 존재하여 [:-1]로 슬라이싱
-                commands = f.read().split(';')[:-1]
-            for command in commands:
-                cur.execute(command.strip())
+        if sql_file:
+            with self.remote.cursor() as cur:
+                # 파일에서 '\ufeff'가 읽힐 경우 encoding하거나 replace로 제거
+                with open(sql_file, 'r', encoding='utf-8-sig') as f :
+                    # split(';')이기에 마지막에 ['']가 존재하여 [:-1]로 슬라이싱
+                    commands = f.read().split(';')[:-1]
+                for command in commands:
+                    cur.execute(command.strip())
 
         
         # category 테이블 record 적재.
-        with self.remote.cursor() as cur:
-            # category 불러오기
-            try:
-                with open(category_file, 'r') as f:
-                    category = json.load(f)
-            except:
-                print("category.json don't exist or path is worng.")
+        if category_file:
+            with self.remote.cursor() as cur:
+                # category 불러오기
+                try:
+                    with open(category_file, 'r') as f:
+                        category = json.load(f)
+                except:
+                    raise Exception("category.json don't exist or path is worng.")
 
-            # category 확인 및 적재
-            done_list = []
-            error_list = []
-            try:
-                cur.execute('select count(*) from category')
-                if cur.fetchall()[0][0]==145:
-                    print('='*50)
-                    print('already all record is loaded on CATEGORY table')
-                    pass
-                else:
-                    for platfrom in category.keys():
-                        for cat_1 in category[platfrom].keys():
-                            for name, id in category[platfrom][cat_1].items():
-                                try:
-                                    cur.execute(f"insert into category values({id}, '{cat_1}','{name}', '{platfrom}')")
-                                    done_list.append([id, cat_1, name, platfrom])
-                                except:
-                                    error_list.append([id, cat_1, name, platfrom])
-                                    print(f"already values({id}, '{cat_1}','{name}', '{platfrom}' exist")
-                    print('='*50)
-                    print(f'done_task: {len(done_list)}, error_task: {len(error_list)}')
-            except:
-                print("make tables first!")
+                # category 확인 및 적재
+                done_list = []
+                error_list = []
+                try:
+                    cur.execute('select count(*) from CATEGORY')
+                    if cur.fetchall()[0][0]==145:
+                        print('='*50)
+                        print('already all record is loaded on CATEGORY table')
+                        pass
+                    else:
+                        for platfrom in category.keys():
+                            for cat_1 in category[platfrom].keys():
+                                for name, id in category[platfrom][cat_1].items():
+                                    try:
+                                        cur.execute(f"insert into CATEGORY values({id}, '{cat_1}','{name}', '{platfrom}')")
+                                        done_list.append([id, cat_1, name, platfrom])
+                                    except:
+                                        error_list.append([id, cat_1, name, platfrom])
+                                        print(f"already values({id}, '{cat_1}','{name}', '{platfrom}' exist")
+                        print('='*50)
+                        print(f'done_task: {len(done_list)}, error_task: {len(error_list)}')
+                except:
+                    raise Exception("make tables first!")
+                
+            if category_file:
+                with self.remote.cursor() as cur:
+                    cur.execute('select * from CATEGORY')
+                    tmp = cur.fetchall()
+                self.SUB_CATEGORY_DF = pd.DataFrame(tmp, columns=['cat2_id', 'cat1_name', 'cat2_name', 'platform_name'])
 
         # DML은 별도 commit 필요!
         self.remote.commit()
@@ -146,9 +148,9 @@ class NewsDB:
         # column 이름 일치 확인
         df_columns = ['cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url']
         df = df[df_columns]
-        # 순서가 다를 경우 해결하도록 재배치로 변경
-        # if sum(~(df_columns==df.columns)):
-        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
+        for col in df.columns:
+            df.loc[df[col].isna().index, col] = None
+            df.loc[(df[col]==''), col] = None
 
         # platform_name 변환 및 cat2_id 할당
         df['platform_name'] = [platform if platform in ("네이버", "다음") else "네이버" if platform.upper()=="NAVER" else "다음" if platform.upper()=="DAUM" else None for platform in df['platform_name']]
@@ -173,7 +175,7 @@ class NewsDB:
     def change_comment_df(self, df: pd.DataFrame([list, str])) -> None:
         """
         인자 : 댓글 데이터프레임
-        columns = ['comment', 'url']
+        columns = ['user_id', 'user_name']
 
         데이터프레임 칼럼 체크하여 Comment 테이블의 칼럼과 일치하지 않을 경우 에러
         
@@ -181,7 +183,28 @@ class NewsDB:
         2. 신규 유저일 경우 유저 테이블에 추가, id값 가져오기 (DB에 유저 정보가 저장되어있다면 가져오기)
         3. url을 통해 코멘트 별 뉴스기사 id 가져오기 (select)
         """
-        pass
+        
+        # user_df 생성 및 적재
+        with self.remote.cursor() as cur:
+            my_query = "insert ignore into USER(user_id, user_name) values(%s, %s)"
+            cur.executemany(my_query, df.values.tolist())
+        self.remote.commit()
+        print('inserted user!')
+
+        # get user_id
+        with self.remote.cursor() as cur:
+            cur.execute("select u.id, user_id from USER")
+            user_df = pd.DataFrame(cur.fetchall(), columns=['id', 'user_id'])
+        df = user_df[user_df.user_id.isin(df.user_id.values)]
+
+        # get news_id
+        with self.remote.cursor() as cur:
+            cur.execute("select c.user_id, c.news_id n.url from COMMENT c, NEWS n where c.news_id=n.id")
+            news_df = pd.DataFrame(cur.fetchall(), columns=['id', 'news_id', 'url'])
+        df = news_df[news_df.id.isin(df.id.values)]
+        return df
+        
+        
 
     def insert_comment(self, df: pd.DataFrame) -> None:
         """
@@ -194,52 +217,18 @@ class NewsDB:
         2. DB에 적재
         """
 
-        # # column과 url 확인
-        # df_columns = ['comment', 'url']
-        # if sum(~(df_columns==df.columns)):
-        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
-        # elif sum(df.url.str.find('comment')>=0):
-        #     raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
-        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
-        
-        # # get news_id
-        # tmp_list = []
-        # with self.remote.cursor() as cur:
-        #     my_query = "select id, url from news where url=%s"
-        #     for v in df['url'].values:
-        #         cur.execute(my_query, v)
-        #         tmp_list.extend(cur.fetchall())
-
-        # tmp_list = pd.DataFrame(tmp_list, columns=['news_id', 'url'])
-        # df = pd.merge(df, tmp_list, 'left', 'url').explode('comment').reset_index(drop=True)
-        # del tmp_list
-
-        # # comment_df 변환
-        # trash, df['comment'], df['user_id'], df['user_name'], df['date_upload'], df['date_fix'], df['good_cnt'], df['bad_cnt'] = zip(*df.comment.values)
-        # del trash
-        # df['date_upload'] =  df['date_upload'].str.split('+').str[0]
-        # if df['date_upload'][0].find('T')>=0:
-        #     df['date_upload'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_upload']]
-        #     df['date_fix'] = [' '.join(date__[:-5].split('T')) for date__ in df['date_fix']]
-        # df = df[~df.user_id.isna()].reset_index(drop=True)
-        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt']
-        # df = df[df_columns]
-
         # column과 url 확인
         df_columns = ['user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
         df = df[df_columns]
-        # df_columns = ['news_id', 'user_id', 'user_name', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt', 'url']
-        # if sum(~(df_columns==df.columns)):
-        #     raise Exception(f"columns' name dont matched!!\nmake columns' name like {df_columns}")
-        # elif sum(df.url.str.find('comment')>=0):
-        #     raise Exception(f"urls are comments' url!! function needs news contents' urls!!")
+        for col in df.columns:
+            df.loc[df[col].isna().index, col] = None
+            df.loc[(df[col]==''), col] = None
 
         # get news_id
         with self.remote.cursor() as cur:
-            cur.execute("select id, url from news")
+            cur.execute("select id, url from NEWS")
             tmp_df = pd.DataFrame(cur.fetchall(), columns=['news_id', 'url'])
 
-        # df = pd.merge(df, tmp_list, 'left', 'url').explode('comment').reset_index(drop=True)
         df = pd.merge(df, tmp_df, 'left', 'url').reset_index(drop=True)
         del tmp_df
 
@@ -257,19 +246,15 @@ class NewsDB:
         print('inserted user!')
 
         # get user_id
-        tmp_list = []
         with self.remote.cursor() as cur:
-            my_query = "select id, user_id from user where user_id=%s"
-            for v in user_df.user_id.values:
-                cur.execute(my_query, v)
-                tmp_list.extend(cur.fetchall())
-        tmp_list = pd.DataFrame(tmp_list, columns=['id', 'user_id'])
+            cur.execute("select id, user_id from USER")
+            tmp_df = pd.DataFrame(cur.fetchall(), columns=['id', 'user_id'])
 
         # comment_df 변환 및 적재
         df_columns.pop(2)
-        df = pd.merge(df, tmp_list.drop_duplicates('user_id').reset_index(drop=True), 'left', 'user_id').reset_index(drop=True)
+        df = pd.merge(df, tmp_df.drop_duplicates('user_id').reset_index(drop=True), 'left', 'user_id').reset_index(drop=True)
         df = df.drop(columns='user_id').rename(columns={'id': 'user_id'})[df_columns]
-        del user_df, tmp_list
+        del user_df,
 
         with self.remote.cursor() as cur:
             my_query = "insert ignore into COMMENT(news_id, user_id, comment, date_upload, date_fix, good_cnt, bad_cnt) values(%s, %s, %s, %s, %s, %s, %s)"
@@ -282,7 +267,7 @@ class NewsDB:
         
     ## 강사님 코드
     ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
-    def select_news(self, start_date=None, end_date=None, platform: str|None=None, category1: str|None=None, category2=None) -> pd.DataFrame:
+    def select_news(self, start_date=None, end_date=None, platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -298,6 +283,8 @@ class NewsDB:
         4. LIMIT, OFFSET 등 처리
         """
 
+        
+
         where_sql = []
 
         if start_date and end_date:
@@ -307,21 +294,43 @@ class NewsDB:
         elif end_date:
             where_sql.append(f"date_upload <= '{end_date}'")
 
+        if platform or category1 or category2:
+            tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF.copy()
+        else:
+            tmp_SUB_CATEGORY_DF=None
+        
         if platform:
-            if platform==1:
+            if platform=='다음':
                 where_sql.append(f"cat2_id<20000")
-            elif platform==2:
+            elif platform=='네이버':
                 where_sql.append(f"cat2_id>20000")
             else:
-                raise Exception('you can use only 1 or 2!')
-
+                raise Exception('you can use only "다음" or "네이버"!')
+            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==platform]
+        
+        if category1:
+            isin_list = []
+            if type(category1)==str:
+                category1 = [category1]
+            for value in category1:
+                isin_list.append(value)
+            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
+        
         if category2:
+            isin_list = []
+            if type(category1)==str:
+                category1 = [category1]
+            for value in category1:
+                isin_list.append(value)
+            tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
+
+        if tmp_SUB_CATEGORY_DF:
+            cat2_id = []
             # 튜플형식 (메인, 서브)
-            cat2_id = self.SUB_CATEGORY_DICT[platform][category1][category2]
-            where_sql.append(f"cat2_id={cat2_id}")
+            cat2_id.append(self.SUB_CATEGORY_DICT[platform][category1][category2])
+            where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF)})")
 
-
-        main_query = f'SELECT id,cat2_id,press,writer,title,content,date_upload,url FROM NEWS'
+        main_query = f'SELECT id,cat2_id,title,press,writer,date_upload,content,sticker,url FROM NEWS '
 
         if where_sql:
             main_query += f' WHERE {" AND ".join(where_sql)}'
@@ -341,16 +350,16 @@ class NewsDB:
 
             offset += 100000 # LIMIT
 
-        news_column = ['news_id','platform','category1', 'category2', 'press','writer','title','content','date_upload','url']
+        news_column = ['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']
         
         df = pd.DataFrame(final_result, columns=news_column)
         self.CATEGORY1_ID2NAME = {int(v): k for k, v in self.category1_info.items()}
         self.CATEGORY2_ID2NAME = {int(v): k for k, v in self.category2_info.items()}
         self.PLATFORM_ID2NAME = {int(v): k for k, v in self.PLATFORM_DICT.items()}
 
-        df['platform'] = df['platform'].map(self.PLATFORM_ID2NAME)
-        df['category1'] = df['category1'].map(self.CATEGORY1_ID2NAME)
-        df['category2'] = df['category2'].map(self.CATEGORY2_ID2NAME)
+        tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
+        df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
+        df = df[['id', 'cat2_id', 'cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']]
 
         return df
     
