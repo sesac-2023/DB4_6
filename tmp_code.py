@@ -397,7 +397,7 @@ class NewsDB:
         4. LIMIT, OFFSET 등 처리
         """
         with self.remote.cursor() as cur:
-            cur.execute('select * from user')
+            cur.execute('select * from USER')
             res = pd.DataFrame(cur.fetchall(), columns=['id', 'user_id', 'user_name'])
         return res
         
@@ -413,7 +413,7 @@ class NewsDB:
         4. LIMIT, OFFSET 등 처리
         """
         with self.remote.cursor() as cur:
-            cur.execute('select * from comment')
+            cur.execute('select * from COMMENT')
             res = pd.DataFrame(cur.fetchall(), columns=['id', 'news_id', 'user_id', 'comment', 'date_upload', 'date_fix', 'good_cnt', 'bad_cnt'])
         return res
 
