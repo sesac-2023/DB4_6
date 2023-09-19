@@ -360,7 +360,13 @@ class NewsDB:
         if 'cat2_id' in columns_name:
             tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
             df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
-            df = df[['id', 'cat2_id', 'cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']]
+            if not 'platform_name' in columns_name:
+                columns_name.insert(columns_name.index('cat2_id')+1, 'platform_name')
+            if not 'cat2_name' in columns_name:
+                columns_name.insert(columns_name.index('cat2_id')+1, 'cat2_name')
+            if not 'cat1_name' in columns_name:
+                columns_name.insert(columns_name.index('cat2_id')+1, 'cat1_name')
+            df = df[columns_name]
 
         return df
     
