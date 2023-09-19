@@ -336,7 +336,7 @@ class NewsDB:
         final_result = []
         if where_sql:
             main_query += f' WHERE {" AND ".join(where_sql)}'
-        if limit:
+        if int(limit)<100000:
             main_query += f' limit {limit}'
             with self.remote.cursor() as cur:
                 cur.execute(main_query)
