@@ -270,7 +270,7 @@ class NewsDB:
     ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
     def select_news(self, start_date=None, end_date=None, 
                     platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None
-                    , columns_name:list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
+                    , columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
                     limit: int|str|None=None) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
@@ -324,10 +324,9 @@ class NewsDB:
                 for value in category2:
                     isin_list.append(value)
                 tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
-            # where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF.cat2_id.apply(str).values)})")
             where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF.cat2_id.apply(str).values.tolist())})")
-        # else:
-        #     tmp_SUB_CATEGORY_DF=None
+        else:
+            tmp_SUB_CATEGORY_DF=None
         
 
         # main_query = f'SELECT id,cat2_id,title,press,writer,date_upload,content,sticker,url FROM NEWS '
@@ -356,14 +355,12 @@ class NewsDB:
                     break
 
                 offset += 100000 # LIMIT
-
-        news_column = ['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url']
         
-        df = pd.DataFrame(final_result, columns=news_column)
-
-        tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
-        df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
-        df = df[['id', 'cat2_id', 'cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']]
+        df = pd.DataFrame(final_result, columns=columns_name)
+        if 'cat2_id' in columns_name:
+            tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
+            df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
+            df = df[['id', 'cat2_id', 'cat1_name', 'cat2_name', 'platform_name', 'title', 'press', 'writer', 'date_upload', 'content', 'sticker', 'url']]
 
         return df
     
