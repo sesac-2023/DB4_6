@@ -266,8 +266,6 @@ class NewsDB:
 
     # 각 인원이 ERD 통해 데이터베이스에 테이블 생성해서 수집한 데이터로 테스트해 볼 것
         
-    ## 강사님 코드
-    ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
     def select_news(self, start_date=None, end_date=None, 
                     platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None
                     , columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
@@ -286,8 +284,6 @@ class NewsDB:
         3. WHERE 조건문
         4. LIMIT, OFFSET 등 처리
         """
-
-        
 
         where_sql = []
 
@@ -360,30 +356,15 @@ class NewsDB:
         if 'cat2_id' in columns_name:
             tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
             df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
-            if not 'platform_name' in columns_name:
-                columns_name.insert(columns_name.index('cat2_id')+1, 'platform_name')
-            if not 'cat2_name' in columns_name:
-                columns_name.insert(columns_name.index('cat2_id')+1, 'cat2_name')
-            if not 'cat1_name' in columns_name:
-                columns_name.insert(columns_name.index('cat2_id')+1, 'cat1_name')
+            for col in ['platform_name', 'cat2_name', 'cat1_name']:
+                columns_name.insert(columns_name.index('cat2_id')+1, col)
             df = df[columns_name]
 
         return df
     
     def select(self, query_command: str) -> tuple:
         """
-        인자 : 데이터를 꺼내올 때 사용할 parameters 
-        (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
-
-        DB에 들어있는 데이터를 꺼내올 것인데, 어떻게 꺼내올지를 고민
-
-        인자로 받은 파라미터 별 조건을 넣은 select SQL문 작성
-
-        SQL문에 추가할 내용들
-        1. 가져올 칼럼
-        2. JOIN할 경우 JOIN문 (플랫폼, 카테고리)
-        3. WHERE 조건문
-        4. LIMIT, OFFSET 등 처리
+        select문 직접 작성
         """
         if query_command.find(';')>=0:
             raise Exception('you can use only one query')
