@@ -270,7 +270,7 @@ class NewsDB:
                     platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None, 
                     columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
                     where_sql: list=[],
-                    limit: str|int=100000) -> pd.DataFrame:
+                    limit: str|int=100000**1000) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
