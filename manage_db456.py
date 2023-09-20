@@ -269,9 +269,10 @@ class NewsDB:
     ## 강사님 코드
     ## 프로젝트 중이나 종료 후 여유될 때 만들어볼 것.
     def select_news(self, start_date=None, end_date=None, 
-                    platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None
-                    , columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
-                    limit: int|str|None=None) -> pd.DataFrame:
+                    platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None, 
+                    columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
+                    where_sql: list=[],
+                    limit: str|int=100000) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -286,10 +287,6 @@ class NewsDB:
         3. WHERE 조건문
         4. LIMIT, OFFSET 등 처리
         """
-
-        
-
-        where_sql = []
 
         if start_date and end_date:
             where_sql.append(f"date_upload BETWEEN '{start_date}' AND '{end_date}'")
