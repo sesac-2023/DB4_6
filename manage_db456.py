@@ -310,7 +310,7 @@ class NewsDB:
                     category1 = [category1]
                 for value in category1:
                     isin_list.append(value)
-                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
+                tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
             
             if category2:
                 isin_list = []
@@ -318,7 +318,7 @@ class NewsDB:
                     category2 = [category2]
                 for value in category2:
                     isin_list.append(value)
-                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[tmp_SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
+                tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_name.isin(isin_list)]
             where_sql.append(f"cat2_id in ({','.join(tmp_SUB_CATEGORY_DF.cat2_id.apply(str).values.tolist())})")
         else:
             tmp_SUB_CATEGORY_DF=None
