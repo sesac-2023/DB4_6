@@ -286,7 +286,6 @@ class NewsDB:
         4. LIMIT, OFFSET 등 처리
         """
 
-
         if start_date and end_date:
             where_sql.append(f"date_upload BETWEEN '{start_date}' AND '{end_date}'")
         elif start_date:
