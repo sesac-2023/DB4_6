@@ -294,7 +294,6 @@ class NewsDB:
             where_sql.append(f"date_upload <= '{end_date}'")
 
         if platform or category1 or category2:
-            tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF.copy()
             if platform:
                 if platform=='다음':
                     where_sql.append(f"cat2_id<20000")
@@ -302,7 +301,7 @@ class NewsDB:
                     where_sql.append(f"cat2_id>20000")
                 else:
                     raise Exception('you can use only "다음" or "네이버"!')
-                tmp_SUB_CATEGORY_DF = tmp_SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==platform]
+                tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.platform_name==platform]
             
             if category1:
                 isin_list = []
@@ -310,6 +309,7 @@ class NewsDB:
                     category1 = [category1]
                 for value in category1:
                     isin_list.append(value)
+                
                 tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
             
             if category2:
