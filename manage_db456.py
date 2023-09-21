@@ -270,7 +270,7 @@ class NewsDB:
                     platform: str|None=None, category1: str|list|None=None, category2: str|list|None=None, 
                     columns_name: list=['id', 'cat2_id', 'title', 'press', 'writer', 'date_upload', 'date_fix', 'content', 'sticker', 'url'], 
                     where_sql: list=[],
-                    limit: str|int=100000**1000) -> pd.DataFrame:
+                    limit: str|int|None=None) -> pd.DataFrame:
         """
         인자 : 데이터를 꺼내올 때 사용할 parameters 
         (어떻게 검색(필터)해서 뉴스기사를 가져올 것인지)
@@ -330,12 +330,13 @@ class NewsDB:
         final_result = []
         if where_sql:
             main_query += f' WHERE {" AND ".join(where_sql)}'
-        if int(limit)<100000:
-            main_query += f' limit {limit}'
-            with self.remote.cursor() as cur:
-                cur.execute(main_query)
-                result = cur.fetchall()
-                final_result.extend(result)
+        if not limit is None:
+            if int(limit)<100000:
+                main_query += f' limit {limit}'
+                with self.remote.cursor() as cur:
+                    cur.execute(main_query)
+                    result = cur.fetchall()
+                    final_result.extend(result)
         else:
             # 1GB Ram 제한 (limit, offset)
             pagination_sql = ' LIMIT 100000 OFFSET {}'
@@ -352,7 +353,7 @@ class NewsDB:
                 offset += 100000 # LIMIT
         
         df = pd.DataFrame(final_result, columns=columns_name)
-        if 'cat2_id' in columns_name:
+        if ('cat2_id' in columns_name) and (tmp_SUB_CATEGORY_DF is not None):
             tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
             df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
             for col in ['platform_name', 'cat2_name', 'cat1_name']:
