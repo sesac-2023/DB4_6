@@ -309,7 +309,6 @@ class NewsDB:
                     category1 = [category1]
                 for value in category1:
                     isin_list.append(value)
-                
                 tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat1_name.isin(isin_list)]
             
             if category2:
@@ -353,8 +352,8 @@ class NewsDB:
                 offset += 100000 # LIMIT
         
         df = pd.DataFrame(final_result, columns=columns_name)
-        if ('cat2_id' in columns_name) and (tmp_SUB_CATEGORY_DF is not None):
-            tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
+        tmp_SUB_CATEGORY_DF = self.SUB_CATEGORY_DF[self.SUB_CATEGORY_DF.cat2_id.isin(df.cat2_id.unique())]
+        if ('cat2_id' in columns_name) and (len(tmp_SUB_CATEGORY_DF.index.values.tolist())>0):
             df = pd.merge(df, tmp_SUB_CATEGORY_DF, 'left', 'cat2_id')
             for col in ['platform_name', 'cat2_name', 'cat1_name']:
                 columns_name.insert(columns_name.index('cat2_id')+1, col)
