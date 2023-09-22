@@ -1,4 +1,6 @@
 # DB4_6
+## ERD
+![image](https://github.com/sesac-2023/DB4_6/assets/124233972/a1a1edee-bac6-4c80-b6b7-94978937b639)
 
 ## 컨벤션
 ### Code Convention
